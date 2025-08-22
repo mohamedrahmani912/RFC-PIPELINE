@@ -7,15 +7,11 @@ terraform {
   }
   
   backend "azurerm" {
-    # Configuration via pipeline
+    # Configuration via variables d'environnement
   }
 }
 
 provider "azurerm" {
   features {}
-  
-  subscription_id = var.subscription_id
-  client_id       = var.client_id
-  client_secret   = var.client_secret
-  tenant_id       = var.tenant_id
+  # Utilise l'authentification Azure CLI automatiquement
 }
