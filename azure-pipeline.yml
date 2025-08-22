@@ -1,0 +1,120 @@
+# azure-pipeline.yml
+trigger:
+- main
+- develop
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+  ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+  ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+  ARM_TENANT_ID: $(ARM_TENANT_ID)
+
+stages:
+- stage: Plan
+  displayName: 'Terraform Plan'
+  jobs:
+  - job: terraform_plan
+    displayName: 'Terraform Plan Execution'
+    steps:
+    - task: TerraformInstaller@0
+      displayName: 'Install Terraform'
+      inputs:
+        terraformVersion: 'latest'
+
+    - task: TerraformTaskV2@2
+      displayName: 'Terraform Init'
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+        backendServiceArm: 'azure-service-connection'
+        backendAzureRmResourceGroupName: 'rg-rfc-infra-we'
+        backendAzureRmStorageAccountName: 'sarfcterraformstate'
+        backendAzureRmContainerName: 'tfstate'
+        backendAzureRmKey: 'rfc-infra.tfstate'
+
+    - task: TerraformTaskV2@2
+      displayName: 'Terraform Validate'
+      inputs:
+        provider: 'azurerm'
+        command: 'validate'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+
+    - task: TerraformTaskV2@2
+      displayName: 'Terraform Plan'
+      inputs:
+        provider: 'azurerm'
+        command: 'plan'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+        environmentServiceNameAzureRM: 'azure-service-connection'
+
+- stage: Apply
+  displayName: 'Terraform Apply'
+  dependsOn: Plan
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - job: terraform_apply
+    displayName: 'Terraform Apply Execution'
+    steps:
+    - task: TerraformInstaller@0
+      displayName: 'Install Terraform'
+      inputs:
+        terraformVersion: 'latest'
+
+    - task: TerraformTaskV2@2
+      displayName: 'Terraform Init'
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+        backendServiceArm: 'azure-service-connection'
+        backendAzureRmResourceGroupName: 'rg-rfc-infra-we'
+        backendAzureRmStorageAccountName: 'sarfcterraformstate'
+        backendAzureRmContainerName: 'tfstate'
+        backendAzureRmKey: 'rfc-infra.tfstate'
+
+    - task: TerraformTaskV2@2
+      displayName: 'Terraform Apply'
+      inputs:
+        provider: 'azurerm'
+        command: 'apply'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+        environmentServiceNameAzureRM: 'azure-service-connection'
+        commandOptions: '-auto-approve'
+
+- stage: Destroy
+  displayName: 'Terraform Destroy'
+  dependsOn: Apply
+  condition: and(succeeded(), eq(variables['Build.Reason'], 'Manual'))
+  jobs:
+  - job: terraform_destroy
+    displayName: 'Terraform Destroy Execution'
+    steps:
+    - task: TerraformInstaller@0
+      displayName: 'Install Terraform'
+      inputs:
+        terraformVersion: 'latest'
+
+    - task: TerraformTaskV2@2
+      displayName: 'Terraform Init'
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+        backendServiceArm: 'azure-service-connection'
+        backendAzureRmResourceGroupName: 'rg-rfc-infra-we'
+        backendAzureRmStorageAccountName: 'sarfcterraformstate'
+        backendAzureRmContainerName: 'tfstate'
+        backendAzureRmKey: 'rfc-infra.tfstate'
+
+    - task: TerraformTaskV2@2
+      displayName: 'Terraform Destroy'
+      inputs:
+        provider: 'azurerm'
+        command: 'destroy'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+        environmentServiceNameAzureRM: 'azure-service-connection'
+        commandOptions: '-auto-approve'
